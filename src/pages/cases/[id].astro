@@ -15,15 +15,14 @@ const hasText = docs.some((doc) => doc.hasText);
 ---
 <Layout title={parsed?.heading ?? 'Case record'}>
   <div class="page">
-    <a class="back" href="/"><Icon name="arrow-left" size={16} /> Case desk</a>
+    <a class="back" href="/cases"><Icon name="arrow-left" size={16} /> All rulings</a>
     {error ? (
       <div class="empty" role="alert"><h1>Unable to load this case</h1><p>{error}</p></div>
     ) : !item ? (
-      <div class="empty"><h1>Case not found</h1><p>The requested record does not exist.</p><a class="button secondary" href="/">Back to the case desk</a></div>
+      <div class="empty"><h1>Case not found</h1><p>The requested record does not exist.</p><a class="button secondary" href="/cases">Back to all rulings</a></div>
     ) : (
       <>
         <header class="detail-head">
-          <p class="kicker">Source record · {item.celex}</p>
           <h1>{parsed!.heading}</h1>
           <p class="lede">{parsed!.formation ?? item.court ?? 'Court not recorded'}</p>
         </header>
@@ -85,7 +84,7 @@ const hasText = docs.some((doc) => doc.hasText);
             </div>
             {topics.length > 0 && (
               <div class="panel">
-                <h2 class="kicker">Matched topics</h2>
+                <h2 class="aside-title">Matched topics</h2>
                 <ul class="tags">{topics.map((topic) => <li class="tag" title={topic.matchType}>{topic.name}</li>)}</ul>
                 <p class="hint" style="margin-top:var(--space-3)">Topics are assigned by keyword match, not legal analysis.</p>
               </div>

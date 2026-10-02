@@ -10,7 +10,6 @@ const names: Record<string, string> = { openai: 'OpenAI', deepseek: 'DeepSeek', 
   <div class="page narrow">
     <header class="page-head">
       <div>
-        <p class="kicker">Configuration</p>
         <h1>Provider settings</h1>
         <p class="lede">Choose an AI provider for source-grounded summaries. Keys are encrypted on the server and never sent back to the browser.</p>
       </div>
@@ -18,7 +17,7 @@ const names: Record<string, string> = { openai: 'OpenAI', deepseek: 'DeepSeek', 
 
     <section class="panel" aria-labelledby="h-saved">
       <h2 id="h-saved">Saved providers</h2>
-      {error ? <p class="notice error" role="alert"><Icon name="error" /><span>{error}</span></p> : providers.length === 0 ? <p class="muted">No provider is configured yet. The case desk remains fully usable without AI.</p> : (
+      {error ? <p class="notice error" role="alert"><Icon name="error" /><span>{error}</span></p> : providers.length === 0 ? <p class="muted">No provider is configured yet. Every ruling stays readable without AI.</p> : (
         <ul class="provider-list">
           {providers.map((provider) => (
             <li class="provider-row">

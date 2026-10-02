@@ -5,8 +5,10 @@ const { Pool } = pg;
 let pool: pg.Pool | undefined;
 
 export function getPool() {
-  if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
-  pool ??= new Pool({ connectionString: process.env.DATABASE_URL, max: 8, idleTimeoutMillis: 10_000 });
+  // Monitoring holds a session-level advisory lock, which a transaction pooler (Neon's pooled URL) does not preserve.
+  const connectionString = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
+  if (!connectionString) throw new Error('DATABASE_URL is required');
+  pool ??= new Pool({ connectionString, max: 8, idleTimeoutMillis: 10_000 });
   return pool;
 }
 

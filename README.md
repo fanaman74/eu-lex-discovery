@@ -28,6 +28,17 @@ Settings supports OpenAI, DeepSeek, OpenRouter OpenAI-compatible endpoints, and 
 
 Summary generation requires retrieved source text. The prompt treats that text as untrusted data, asks for a fixed JSON shape, accepts paragraph citations only when `[paragraph N]` markers exist in the retrieved XHTML, and marks truncated documents incomplete. Original source documents and AI reports use separate tables and are shown separately in case detail pages. Never treat generated interpretation as a court finding.
 
+## Hosted database (Neon)
+
+The deployed app uses a Neon Postgres database. `neon link` writes `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct) into `.env`. `scripts/db-to-neon.ps1` copies a local database, named by `LOCAL_DATABASE_URL` in `.env`, into Neon; it needs the PostgreSQL client tools.
+
+```powershell
+./scripts/db-to-neon.ps1            # backup, restore, verify row counts
+./scripts/db-to-neon.ps1 -DumpOnly  # backup only, written to .local/backups
+```
+
+The script refuses a non-empty target unless `-Force` is given and fails if any table's row count differs afterwards. The app connects with `DATABASE_URL_UNPOOLED` when it is set and falls back to `DATABASE_URL`; use the direct Neon string, because monitoring takes a session-level advisory lock that a transaction pooler does not preserve. The Railway web service needs that connection string as `DATABASE_URL`, plus `HOST=0.0.0.0` and `CREDENTIAL_ENCRYPTION_KEY`.
+
 ## Checks
 
 ```powershell
