@@ -5,6 +5,7 @@ const { title = 'EU Lex Discovery', description = 'EU court rulings on rights at
 const path = Astro.url.pathname;
 const links = [
   { href: '/cases', label: 'Rulings', active: path.startsWith('/cases') },
+  { href: '/rules', label: 'Rules', active: path.startsWith('/rules') },
   { href: '/monitoring', label: 'Monitoring', active: path.startsWith('/monitoring') },
   { href: '/settings', label: 'Settings', active: path.startsWith('/settings') }
 ];

@@ -284,6 +284,22 @@ td.nowrap { white-space: nowrap; }
 .provider-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
 .provider-result { flex-basis: 100%; }
 
+/* ---------- Rules page ---------- */
+
+.jump { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-7); }
+.jump a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 var(--space-4); border: 2px solid var(--ink); font-weight: 700; text-decoration: none; transition: background-color 160ms var(--ease-out), color 160ms var(--ease-out); }
+.jump a:hover { background: var(--ink); color: #fff; }
+.rule-group { scroll-margin-top: 88px; }
+.rule-group + .rule-group { margin-top: var(--space-8); }
+.rule-group-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-4) var(--space-6); align-items: end; margin-bottom: var(--space-5); }
+.rule-group-head p { color: var(--grey); max-width: 56ch; }
+.rule-group .dispatch { grid-template-columns: 130px minmax(0, 1fr) 260px; }
+.rule-group .dispatch-ref { white-space: normal; }
+.rule-group .dispatch-ref span { font-size: 0.875rem; }
+.rule-summary { max-width: 68ch; }
+.dispatch:hover .rule-summary, .dispatch:focus-within .rule-summary { color: #e4e4e0; }
+.rule-note { margin-top: var(--space-7); padding-top: var(--space-4); border-top: 1px solid var(--ink); color: var(--grey); max-width: 80ch; font-size: 0.9375rem; }
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 1100px) {
@@ -294,7 +310,8 @@ td.nowrap { white-space: nowrap; }
 }
 
 @media (max-width: 820px) {
-  .dispatch { grid-template-columns: 96px minmax(0, 1fr); }
+  .dispatch, .rule-group .dispatch { grid-template-columns: 96px minmax(0, 1fr); }
+  .rule-group-head { grid-template-columns: minmax(0, 1fr); }
   .dispatch-date span { font-size: 2.5rem; }
   .dispatch-ref { grid-column: 2; grid-template-columns: auto auto 1fr; justify-items: start; align-items: center; gap: var(--space-3); text-align: left; }
   .dispatch-ref .icon { margin-top: 0; justify-self: end; }
@@ -313,8 +330,8 @@ td.nowrap { white-space: nowrap; }
   .masthead-check { margin-left: auto; padding-left: 0; border-left: 0; font-size: 0.8125rem; }
   .masthead-check span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .masthead-check::before { content: 'Checked '; }
-  .masthead nav a { padding: 0 var(--space-3); }
-  .dispatch { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
+  .masthead nav a { padding: 0 10px; }
+  .dispatch, .rule-group .dispatch { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
   .dispatch-date span { display: inline; font-size: 1.75rem; }
   .dispatch-ref { grid-column: 1; }
   .filters, .form-grid, .facts.inline { grid-template-columns: minmax(0, 1fr); }

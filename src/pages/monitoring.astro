@@ -3,7 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import Icon from '../components/Icon.astro';
 import { query } from '../lib/db';
 let runs: any[] = [], source: any = null, pref: any = null, error = '';
-try { runs = (await query('SELECT mr.*,s.name source_name FROM monitoring_runs mr JOIN sources s ON s.id=mr.source_id ORDER BY mr.started_at DESC LIMIT 12')).rows; source = (await query('SELECT name,last_checked_at,last_success_at FROM sources WHERE key=\'eurlex-sparql\'')).rows[0]; pref = (await query('SELECT timezone,hour,minute,enabled FROM schedule_preferences WHERE id=1')).rows[0]; } catch (e) { error = e instanceof Error ? e.message : 'Database unavailable'; }
+try { runs = (await query('SELECT mr.*,s.name source_name FROM monitoring_runs mr JOIN sources s ON s.id=mr.source_id ORDER BY mr.started_at DESC LIMIT 20')).rows; source = (await query('SELECT name,last_checked_at,last_success_at FROM sources WHERE key=\'eurlex-sparql\'')).rows[0]; pref = (await query('SELECT timezone,hour,minute,enabled FROM schedule_preferences WHERE id=1')).rows[0]; } catch (e) { error = e instanceof Error ? e.message : 'Database unavailable'; }
 const date = (v: string | null) => v ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(v)) : 'Never';
 const pad = (value: number) => String(value).padStart(2, '0');
 const time = `${pad(pref?.hour ?? 6)}:${pad(pref?.minute ?? 30)}`;
@@ -56,14 +56,15 @@ const statuses: Record<string, { tone: string; icon: string; label: string }> = 
           {runs.length === 0 ? <p class="muted">No checks have run yet. Use “Run check now” to verify the official source.</p> : (
             <div class="table-wrap">
               <table>
-                <caption class="sr-only">The 12 most recent source checks</caption>
-                <thead><tr><th scope="col">Started</th><th scope="col">Status</th><th scope="col" class="num">Discovered</th><th scope="col" class="num">New</th><th scope="col" class="num">Failed</th><th scope="col">Note</th></tr></thead>
+                <caption class="sr-only">The 20 most recent source checks</caption>
+                <thead><tr><th scope="col">Started</th><th scope="col">Source</th><th scope="col">Status</th><th scope="col" class="num">Discovered</th><th scope="col" class="num">New</th><th scope="col" class="num">Failed</th><th scope="col">Note</th></tr></thead>
                 <tbody>
                   {runs.map((run) => {
                     const state = statuses[run.status] ?? { tone: '', icon: 'info', label: run.status };
                     return (
                       <tr>
                         <td class="nowrap">{date(run.started_at)}</td>
+                        <td>{run.source_name}</td>
                         <td><span class:list={['badge', state.tone]}><Icon name={state.icon} size={14} />{state.label}</span></td>
                         <td class="num">{run.discovered_count}</td>
                         <td class="num">{run.imported_count}</td>
