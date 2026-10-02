@@ -1,0 +1,124 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import { query } from '../lib/db';
+let runs: any[] = [], source: any = null, pref: any = null, error = '';
+try { runs = (await query('SELECT mr.*,s.name source_name FROM monitoring_runs mr JOIN sources s ON s.id=mr.source_id ORDER BY mr.started_at DESC LIMIT 12')).rows; source = (await query('SELECT name,last_checked_at,last_success_at FROM sources WHERE key=\'eurlex-sparql\'')).rows[0]; pref = (await query('SELECT timezone,hour,minute,enabled FROM schedule_preferences WHERE id=1')).rows[0]; } catch (e) { error = e instanceof Error ? e.message : 'Database unavailable'; }
+const date = (v: string | null) => v ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(v)) : 'Never';
+const pad = (value: number) => String(value).padStart(2, '0');
+const time = `${pad(pref?.hour ?? 6)}:${pad(pref?.minute ?? 30)}`;
+const statuses: Record<string, { tone: string; icon: string; label: string }> = {
+  success: { tone: 'success', icon: 'check', label: 'Success' },
+  partial: { tone: 'warning', icon: 'warning', label: 'Partial' },
+  failed: { tone: 'danger', icon: 'error', label: 'Failed' },
+  running: { tone: '', icon: 'activity', label: 'Running' }
+};
+---
+<Layout title="Monitoring">
+  <div class="page narrow">
+    <header class="page-head">
+      <div>
+        <p class="kicker">Source operations</p>
+        <h1>Monitoring</h1>
+        <p class="lede">A separate worker checks official sources daily. Every attempt is recorded, including partial failures.</p>
+      </div>
+      <div>
+        <button class="button" id="run-monitor" type="button">Run check now</button>
+      </div>
+    </header>
+    <p id="run-status" class="form-status" role="status" style="margin:calc(var(--space-4) * -1) 0 var(--space-4)"></p>
+
+    {error ? <p class="notice error" role="alert"><Icon name="error" /><span>{error}</span></p> : (
+      <>
+        <section class="panel" aria-labelledby="h-source">
+          <h2 id="h-source">{source?.name ?? 'EUR-Lex / Cellar SPARQL'}</h2>
+          <dl class="facts inline">
+            <div><dt>Last checked</dt><dd>{date(source?.last_checked_at)}</dd></div>
+            <div><dt>Last successful run</dt><dd>{date(source?.last_success_at)}</dd></div>
+            <div><dt>Schedule</dt><dd>{pref?.enabled ? `Daily at ${time}, ${pref.timezone}` : 'Disabled'}</dd></div>
+          </dl>
+        </section>
+
+        <section class="panel" aria-labelledby="h-schedule">
+          <h2 id="h-schedule">Daily schedule</h2>
+          <form id="schedule-form">
+            <div class="form-grid">
+              <div class="field"><label for="s-time">Time of day</label><input id="s-time" name="time" type="time" value={time} required /></div>
+              <div class="field"><label for="s-tz">Timezone</label><input id="s-tz" name="timezone" value={pref?.timezone ?? 'Europe/Brussels'} required aria-describedby="s-tz-hint" autocomplete="off" spellcheck="false" /><span class="hint" id="s-tz-hint">IANA name, for example Europe/Brussels.</span></div>
+            </div>
+            <label class="check" style="margin-top:var(--space-3)"><input type="checkbox" name="enabled" checked={pref?.enabled !== false} /> Run the daily check automatically</label>
+            <p class="hint">The schedule only runs while the worker process (<code>npm run worker</code>) is running.</p>
+            <div class="form-actions"><button class="button" type="submit">Save schedule</button><span id="schedule-status" class="form-status" role="status"></span></div>
+          </form>
+        </section>
+
+        <section class="panel" aria-labelledby="h-runs">
+          <h2 id="h-runs">Run history</h2>
+          {runs.length === 0 ? <p class="muted">No checks have run yet. Use “Run check now” to verify the official source.</p> : (
+            <div class="table-wrap">
+              <table>
+                <caption class="sr-only">The 12 most recent source checks</caption>
+                <thead><tr><th scope="col">Started</th><th scope="col">Status</th><th scope="col" class="num">Discovered</th><th scope="col" class="num">New</th><th scope="col" class="num">Failed</th><th scope="col">Note</th></tr></thead>
+                <tbody>
+                  {runs.map((run) => {
+                    const state = statuses[run.status] ?? { tone: '', icon: 'info', label: run.status };
+                    return (
+                      <tr>
+                        <td class="nowrap">{date(run.started_at)}</td>
+                        <td><span class:list={['badge', state.tone]}><Icon name={state.icon} size={14} />{state.label}</span></td>
+                        <td class="num">{run.discovered_count}</td>
+                        <td class="num">{run.imported_count}</td>
+                        <td class="num">{run.failure_count}</td>
+                        <td class="small">{run.error_message ?? <span class="muted">—</span>}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </>
+    )}
+  </div>
+</Layout>
+<script>
+  const setStatus = (el: HTMLElement | null, state: string, text: string) => { if (el) { el.dataset.state = state; el.textContent = text; } };
+
+  const runButton = document.querySelector<HTMLButtonElement>('#run-monitor');
+  const runStatus = document.querySelector<HTMLElement>('#run-status');
+  runButton?.addEventListener('click', async () => {
+    runButton.disabled = true; runButton.textContent = 'Checking…';
+    setStatus(runStatus, '', 'Querying the official source. This can take a minute.');
+    try {
+      const response = await fetch('/api/monitor', { method: 'POST' });
+      const body = await response.json().catch(() => ({}));
+      if (response.ok) { location.reload(); return; }
+      setStatus(runStatus, 'error', `Check failed: ${body.error ?? 'unknown error'}`);
+    } catch { setStatus(runStatus, 'error', 'Network error. The check may not have started.'); }
+    runButton.disabled = false; runButton.textContent = 'Run check now';
+  });
+
+  const scheduleForm = document.querySelector<HTMLFormElement>('#schedule-form');
+  const scheduleStatus = document.querySelector<HTMLElement>('#schedule-status');
+  scheduleForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(scheduleForm);
+    const [hour, minute] = String(data.get('time')).split(':').map(Number);
+    const timezone = String(data.get('timezone')).trim();
+    try { new Intl.DateTimeFormat('en-CA', { timeZone: timezone }); } catch {
+      setStatus(scheduleStatus, 'error', `“${timezone}” is not a valid IANA timezone name.`);
+      scheduleForm.querySelector<HTMLInputElement>('#s-tz')?.focus();
+      return;
+    }
+    const button = scheduleForm.querySelector('button')!;
+    button.disabled = true; setStatus(scheduleStatus, '', 'Saving…');
+    try {
+      const response = await fetch('/api/schedule', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ timezone, hour, minute, enabled: data.get('enabled') === 'on' }) });
+      if (response.ok) { location.reload(); return; }
+      const body = await response.json().catch(() => ({}));
+      setStatus(scheduleStatus, 'error', `Not saved: ${String(body.error ?? 'unknown error').slice(0, 160)}`);
+    } catch { setStatus(scheduleStatus, 'error', 'Network error. The schedule was not saved.'); }
+    button.disabled = false;
+  });
+</script>

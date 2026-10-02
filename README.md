@@ -1,0 +1,46 @@
+# EU Lex Discovery
+
+EU Lex Discovery is a source-first legal monitoring desk for European employment and workplace law. Phase 1 connects to the official EUR-Lex / Cellar SPARQL endpoint, imports genuine CJEU and General Court records, retrieves the official English source document, and stores source metadata separately from optional AI reports.
+
+## Run locally
+
+Requirements: Node 24+, npm 11+, and PostgreSQL 14+.
+
+```powershell
+Copy-Item .env.example .env
+# Set DATABASE_URL and a 32-byte CREDENTIAL_ENCRYPTION_KEY in .env
+npm install
+npm run db:migrate
+npm run dev
+```
+
+The default local binding is `127.0.0.1:4321`. In production set `NODE_ENV=production` and a long `ADMIN_TOKEN`; browser write routes then require the same-origin request plus `x-admin-token`. This phase is intended for a local or private deployment and does not provide an internet-facing identity system.
+
+## Monitoring
+
+Run a source check manually from the Monitoring page or with `npm run monitor`. Keep `npm run worker` running as a separate process for the daily schedule. The worker reads `schedule_preferences` from PostgreSQL in `Europe/Brussels` by default, catches up after downtime once per local day, and obtains a PostgreSQL advisory lock so manual and scheduled runs cannot overlap. Every source attempt is written to `monitoring_runs`; failures and partial document retrievals remain visible.
+
+The EUR-Lex query requests up to 100 recent English expression records per run, filters CELEX identifiers to genuine judgment/order patterns (`CJ`, `TJ`, `FJ`, `CO`, `TO`, `FO`), and uses a bounded English title vocabulary for the source request. The monitor then applies the enabled English topic terms stored in PostgreSQL for final inclusion and case-topic tagging. This is a bounded discovery window, not exhaustive coverage. The SPARQL `work_date_document` value is stored as judgment date. Publication date remains null until a source supplies publication metadata; it is never inferred from the judgment date. English is labelled `English source version` because the expression language is not proof of the original language. Document enrichment depends on the official content-negotiation endpoint and may be unavailable even when metadata imports.
+
+## AI providers
+
+Settings supports OpenAI, DeepSeek, OpenRouter OpenAI-compatible endpoints, and Anthropic. Keys are encrypted with AES-256-GCM using `CREDENTIAL_ENCRYPTION_KEY`; API responses expose only `hasKey`. Provider endpoints are HTTPS and restricted to official provider hosts. Model catalog and connection tests are available where supported, while model identifiers remain manual inputs. No provider is required for source browsing.
+
+Summary generation requires retrieved source text. The prompt treats that text as untrusted data, asks for a fixed JSON shape, accepts paragraph citations only when `[paragraph N]` markers exist in the retrieved XHTML, and marks truncated documents incomplete. Original source documents and AI reports use separate tables and are shown separately in case detail pages. Never treat generated interpretation as a court finding.
+
+## Checks
+
+```powershell
+npm test
+npm run check
+npm run build
+npm audit --omit=dev --audit-level=high
+```
+
+The tests cover credential round-tripping and redaction, malformed and valid source payload parsing, and schedule catch-up semantics. A real AI generation call requires a user-supplied key; it has not been claimed as tested without one.
+
+## Current scope
+
+Phase 1 covers EUR-Lex / Cellar, topic keyword matching in English with editable multilingual topic fields through the Topics API, dashboard search/filter/pagination, official source links, provider settings, monitoring history, configurable schedule preferences, and source-grounded summary scaffolding. National sources, HUDOC, OCR, semantic search, PDF export, saved searches, email notifications, and full multilingual expression retrieval remain planned extensions. Cases remain useful when AI is disabled because metadata and official links are independent of reports.
+
+In production, keep the app behind a private reverse proxy or identity layer. Browser forms intentionally do not carry `ADMIN_TOKEN`; the trusted proxy must inject `x-admin-token` after authenticating an operator. The app fails closed when `NODE_ENV=production` and that header is absent. Run the web server and `npm run worker` as separately supervised processes (for example, systemd, NSSM, or a container supervisor); the worker is not started by a browser request. `HOST`, `PORT`, `MONITOR_TIMEZONE`, `MONITOR_HOUR`, and `MONITOR_MINUTE` are environment defaults; persisted schedule preferences override the monitor time after migration.

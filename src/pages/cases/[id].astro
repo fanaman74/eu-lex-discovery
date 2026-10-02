@@ -1,0 +1,116 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Icon from '../../components/Icon.astro';
+import { query } from '../../lib/db';
+import { parseTitle } from '../../lib/title';
+const id = Number(Astro.params.id);
+let item: any = null, error = '';
+try { const result = await query(`SELECT c.*,co.name court,co.jurisdiction, json_agg(DISTINCT jsonb_build_object('name',t.name_en,'matchType',ct.match_type)) FILTER (WHERE t.id IS NOT NULL) topics, json_agg(DISTINCT jsonb_build_object('url',d.official_url,'reference',d.source_reference,'retrievedAt',d.retrieved_at,'hasText',d.text_content IS NOT NULL)) docs, (SELECT report_json FROM reports r WHERE r.case_id=c.id AND r.status='complete' ORDER BY r.created_at DESC LIMIT 1) latest_report FROM cases c LEFT JOIN courts co ON co.id=c.court_id LEFT JOIN case_topics ct ON ct.case_id=c.id LEFT JOIN topics t ON t.id=ct.topic_id LEFT JOIN documents d ON d.case_id=c.id WHERE c.id=$1 GROUP BY c.id,co.name,co.jurisdiction`, [id]); item = result.rows[0]; } catch (e) { error = e instanceof Error ? e.message : 'Database unavailable'; }
+const date = (v: string | null) => v ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'long' }).format(new Date(v)) : 'Not recorded';
+const parsed = item ? parseTitle(item.title) : null;
+const docs: any[] = (item?.docs ?? []).filter((doc: any) => doc.url);
+const topics: any[] = (item?.topics ?? []).filter((t: any) => t.name);
+const report = item?.latest_report ?? null;
+const hasText = docs.some((doc) => doc.hasText);
+---
+<Layout title={parsed?.heading ?? 'Case record'}>
+  <div class="page">
+    <a class="back" href="/"><Icon name="arrow-left" size={16} /> Case desk</a>
+    {error ? (
+      <div class="empty" role="alert"><h1>Unable to load this case</h1><p>{error}</p></div>
+    ) : !item ? (
+      <div class="empty"><h1>Case not found</h1><p>The requested record does not exist.</p><a class="button secondary" href="/">Back to the case desk</a></div>
+    ) : (
+      <>
+        <header class="detail-head">
+          <p class="kicker">Source record · {item.celex}</p>
+          <h1>{parsed!.heading}</h1>
+          <p class="lede">{parsed!.formation ?? item.court ?? 'Court not recorded'}</p>
+        </header>
+        <div class="detail-grid">
+          <div class="detail-main">
+            <section class="panel" aria-labelledby="h-source">
+              <h2 id="h-source">Official source</h2>
+              <div class="prose">
+                {parsed!.keywords.length > 0 && <><h3>Subject matter</h3><ul>{parsed!.keywords.map((keyword) => <li>{keyword}</li>)}</ul></>}
+                {parsed!.notes.map((note) => <p>{note}.</p>)}
+                <details><summary>Full official title</summary><p class="muted small">{item.title}</p></details>
+              </div>
+              {docs.length === 0 ? <p class="muted">No source document has been linked to this case.</p> : (
+                <ul class="source-list">
+                  {docs.map((doc) => (
+                    <li class="source-box">
+                      <a href={doc.url} target="_blank" rel="noreferrer">EUR-Lex document {doc.reference}<Icon name="external" size={16} /><span class="sr-only">(opens in a new tab)</span></a>
+                      <span class="muted small">{doc.hasText ? `Text retrieved ${date(doc.retrievedAt)}` : 'Text not retrieved. Only the link and metadata are available.'}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section class="panel ai" aria-labelledby="h-ai">
+              <div class="panel-head"><h2 id="h-ai">AI summary</h2>{report ? <span class="badge ai">AI-generated</span> : <span class="badge">Not generated</span>}</div>
+              <p class="ai-disclaimer"><Icon name="info" size={16} /><span>Generated interpretation, not a court finding. Verify every point against the official source above.{report?.incomplete && <strong> This summary is marked incomplete: the source was truncated or a citation could not be verified.</strong>}</span></p>
+              <div class="prose">
+                <p>{item.summary ?? 'No summary has been generated for this case yet.'}</p>
+                {report && (
+                  <>
+                    {report.establishedFacts?.length > 0 && <><h3>What the source establishes</h3><ul>{report.establishedFacts.map((fact: string) => <li>{fact}</li>)}</ul></>}
+                    {report.legalQuestions?.length > 0 && <><h3>Legal questions</h3><ul>{report.legalQuestions.map((question: string) => <li>{question}</li>)}</ul></>}
+                    {report.outcome && <><h3>Outcome</h3><p>{report.outcome}</p></>}
+                    {report.relevance && <><h3>Relevance</h3><p>{report.relevance}</p></>}
+                    <p class="muted small">Verified paragraph citations: {report.citations?.join(', ') || 'none'}. A citation is kept only when its paragraph marker exists in the retrieved document.</p>
+                  </>
+                )}
+              </div>
+              <form id="summary-form" action={`/api/cases/${item.id}/summary`} method="post" class="form-actions">
+                <button class="button" type="submit" disabled={!hasText}>{item.summary ? 'Regenerate summary' : 'Generate summary'}</button>
+                <span id="summary-status" class="form-status" role="status">{!hasText && 'Unavailable: no source text has been retrieved for this case.'}</span>
+              </form>
+            </section>
+          </div>
+
+          <aside class="detail-aside" aria-label="Case details">
+            <div class="panel">
+              <dl class="facts">
+                <div><dt>Case number</dt><dd>{item.case_number ?? 'Not recorded'}</dd></div>
+                <div><dt>CELEX</dt><dd>{item.celex}</dd></div>
+                <div><dt>Court</dt><dd>{item.court ?? 'Not recorded'}</dd></div>
+                <div><dt>Jurisdiction</dt><dd>{item.jurisdiction ?? 'Not recorded'}</dd></div>
+                <div><dt>Judgment date</dt><dd>{date(item.judgment_date)}</dd></div>
+                <div><dt>Publication date</dt><dd>{date(item.publication_date)}</dd></div>
+                <div><dt>Language</dt><dd>{item.language ?? 'Not recorded'}</dd></div>
+                <div><dt>Record updated</dt><dd>{date(item.updated_at)}</dd></div>
+              </dl>
+            </div>
+            {topics.length > 0 && (
+              <div class="panel">
+                <h2 class="kicker">Matched topics</h2>
+                <ul class="tags">{topics.map((topic) => <li class="tag" title={topic.matchType}>{topic.name}</li>)}</ul>
+                <p class="hint" style="margin-top:var(--space-3)">Topics are assigned by keyword match, not legal analysis.</p>
+              </div>
+            )}
+          </aside>
+        </div>
+      </>
+    )}
+  </div>
+</Layout>
+<script>
+  const form = document.querySelector<HTMLFormElement>('#summary-form');
+  const status = document.querySelector<HTMLElement>('#summary-status');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = form.querySelector('button')!;
+    const label = button.textContent;
+    button.disabled = true; button.textContent = 'Generating…';
+    status!.dataset.state = ''; status!.textContent = 'Reading the retrieved source. This can take up to a minute.';
+    try {
+      const response = await fetch(form.action, { method: 'POST' });
+      if (response.ok) { location.reload(); return; }
+      const body = await response.json().catch(() => ({}));
+      status!.dataset.state = 'error'; status!.textContent = `Summary failed: ${body.error ?? 'unknown error'}`;
+    } catch { status!.dataset.state = 'error'; status!.textContent = 'Network error. Check the connection and try again.'; }
+    button.disabled = false; button.textContent = label;
+  });
+</script>

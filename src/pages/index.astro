@@ -1,0 +1,110 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import { query } from '../lib/db';
+import { parseTitle } from '../lib/title';
+const PAGE_SIZE = 20;
+let cases: any[] = [], topics: { slug: string; name_en: string }[] = [], matching = 0, stats = { total: 0, recent: 0, courts: 0, lastRun: null as string | null }, error = '';
+const url = Astro.url;
+const q = url.searchParams.get('q')?.trim() ?? '';
+const topic = url.searchParams.get('topic')?.trim() ?? '';
+const court = url.searchParams.get('court')?.trim() ?? '';
+const sort = ['publication','judgment','name'].includes(url.searchParams.get('sort') ?? '') ? url.searchParams.get('sort')! : 'publication';
+const page = Math.max(1, Number(url.searchParams.get('page') ?? 1) || 1);
+try {
+  const params: unknown[] = [];
+  const where: string[] = [];
+  if (q) { params.push(`%${q}%`); where.push(`(c.title ILIKE $${params.length} OR c.case_number ILIKE $${params.length} OR c.celex ILIKE $${params.length} OR COALESCE(c.summary,'') ILIKE $${params.length} OR EXISTS (SELECT 1 FROM documents sd WHERE sd.case_id=c.id AND sd.text_content ILIKE $${params.length}))`); }
+  if (topic) { params.push(topic); where.push(`EXISTS (SELECT 1 FROM case_topics ct JOIN topics t ON t.id=ct.topic_id WHERE ct.case_id=c.id AND t.slug=$${params.length})`); }
+  if (court) { params.push(`%${court}%`); where.push(`co.name ILIKE $${params.length}`); }
+  params.push(PAGE_SIZE, (page - 1) * PAGE_SIZE);
+  const order = sort === 'name' ? 'c.title ASC' : sort === 'judgment' ? 'c.judgment_date DESC NULLS LAST' : 'c.publication_date DESC NULLS LAST';
+  const list = await query(`SELECT c.id,c.celex,c.case_number,c.title,c.judgment_date,c.publication_date,c.language,c.relevance_label,c.summary,co.name court, COALESCE(array_agg(DISTINCT t.name_en) FILTER (WHERE t.id IS NOT NULL),'{}') topics, count(*) OVER() matching FROM cases c LEFT JOIN courts co ON co.id=c.court_id LEFT JOIN case_topics ct ON ct.case_id=c.id LEFT JOIN topics t ON t.id=ct.topic_id ${where.length ? `WHERE ${where.join(' AND ')}` : ''} GROUP BY c.id,co.name ORDER BY ${order},c.updated_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
+  cases = list.rows;
+  matching = Number(cases[0]?.matching ?? 0);
+  topics = (await query<{ slug: string; name_en: string }>('SELECT slug,name_en FROM topics WHERE enabled ORDER BY name_en')).rows;
+  const aggregate = await query<{ total: string; recent: string; courts: string; last_run: string | null }>(`SELECT (SELECT count(*) FROM cases) total,(SELECT count(*) FROM cases WHERE discovered_at > NOW()-INTERVAL '30 days') recent,(SELECT count(*) FROM courts) courts,(SELECT max(finished_at) FROM monitoring_runs WHERE status='success') last_run`);
+  stats = { total: Number(aggregate.rows[0].total), recent: Number(aggregate.rows[0].recent), courts: Number(aggregate.rows[0].courts), lastRun: aggregate.rows[0].last_run };
+} catch (e) { error = e instanceof Error ? e.message : 'Database unavailable'; }
+const date = (value: string | null) => value ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(new Date(value)) : null;
+const filtered = Boolean(q || topic || court);
+const pageHref = (target: number) => {
+  const search = new URLSearchParams();
+  if (q) search.set('q', q);
+  if (topic) search.set('topic', topic);
+  if (court) search.set('court', court);
+  if (sort !== 'publication') search.set('sort', sort);
+  if (target > 1) search.set('page', String(target));
+  const text = search.toString();
+  return text ? `/?${text}` : '/';
+};
+const first = (page - 1) * PAGE_SIZE + 1;
+const last = first + cases.length - 1;
+const hasNext = last < matching;
+---
+<Layout title="Case desk">
+  <div class="page">
+    <header class="page-head">
+      <div>
+        <p class="kicker">European employment law</p>
+        <h1>Case desk</h1>
+        <p class="lede">A source-first view of decisions touching workplace dignity, psychosocial risk and employment rights.</p>
+      </div>
+      <a class="button" href="/monitoring">Run source check <Icon name="arrow-right" size={16} /></a>
+    </header>
+
+    <dl class="stats">
+      <div class="stat"><dt>Cases collected</dt><dd>{stats.total}</dd></div>
+      <div class="stat"><dt>Discovered in the last 30 days</dt><dd>{stats.recent}</dd></div>
+      <div class="stat"><dt>Courts represented</dt><dd>{stats.courts}</dd></div>
+      <div class="stat"><dt>Last successful check</dt><dd>{date(stats.lastRun) ?? 'None yet'}</dd></div>
+    </dl>
+
+    <form class="filters" method="get" role="search" aria-label="Search and filter cases">
+      <div class="field search"><label for="f-q">Search</label><input id="f-q" name="q" type="search" value={q} placeholder="Title, case number, CELEX or source text" /></div>
+      <div class="field"><label for="f-topic">Topic</label><select id="f-topic" name="topic"><option value="">All topics</option>{topics.map((item) => <option value={item.slug} selected={topic === item.slug}>{item.name_en}</option>)}</select></div>
+      <div class="field"><label for="f-court">Court</label><input id="f-court" name="court" value={court} placeholder="e.g. General Court" /></div>
+      <div class="field"><label for="f-sort">Sort by</label><select id="f-sort" name="sort"><option value="publication" selected={sort === 'publication'}>Newest publication</option><option value="judgment" selected={sort === 'judgment'}>Judgment date</option><option value="name" selected={sort === 'name'}>Case name</option></select></div>
+      <div class="actions"><button class="button" type="submit">Apply</button>{filtered && <a class="button secondary" href="/">Clear</a>}</div>
+    </form>
+
+    {error ? (
+      <div class="empty" role="alert"><h2>The case desk cannot reach its database</h2><p>{error}</p><p>Run <code>npm run db:migrate</code>, then reload this page.</p></div>
+    ) : cases.length === 0 ? (
+      <div class="empty">
+        <h2>{page > 1 ? 'No more cases on this page' : filtered ? 'No cases match these filters' : 'No cases collected yet'}</h2>
+        <p>{page > 1 ? 'You have gone past the last page of results.' : filtered ? 'Try a broader search term or clear the filters.' : 'Run a source check to retrieve decisions from EUR-Lex.'}</p>
+        {page > 1 ? <a class="button secondary" href={pageHref(1)}>Back to first page</a> : filtered ? <a class="button secondary" href="/">Clear filters</a> : <a class="button" href="/monitoring">Go to monitoring</a>}
+      </div>
+    ) : (
+      <>
+        <p class="result-bar" role="status">Showing {first}–{last} of {matching} {matching === 1 ? 'case' : 'cases'}{filtered ? ' matching your filters' : ''}</p>
+        <ul class="case-list">
+          {cases.map((item) => {
+            const parsed = parseTitle(item.title);
+            const assessed = Boolean(item.summary);
+            return (
+              <li class="case-card">
+                <div class="case-top">
+                  <p class="case-meta"><strong>{item.case_number ?? item.celex}</strong> · {item.court ?? 'Court not recorded'}{date(item.judgment_date) && <> · {date(item.judgment_date)}</>}</p>
+                  <span class:list={['badge', { ai: assessed }]}>{assessed ? 'AI summary available' : 'Not AI assessed'}</span>
+                </div>
+                <h3><a href={`/cases/${item.id}`}>{parsed.heading}</a></h3>
+                {parsed.keywords.length > 0 && <p class="case-subject">{parsed.keywords.join(' · ')}</p>}
+                {item.summary && <p class="case-summary">{item.summary}</p>}
+                {item.topics.length > 0 && <ul class="tags" aria-label="Topics">{item.topics.map((tag: string) => <li class="tag">{tag}</li>)}</ul>}
+              </li>
+            );
+          })}
+        </ul>
+        <nav class="pagination" aria-label="Pagination">
+          <span>Page {page} of {Math.max(1, Math.ceil(matching / PAGE_SIZE))}</span>
+          <div>
+            {page > 1 ? <a class="button secondary" href={pageHref(page - 1)} rel="prev"><Icon name="arrow-left" size={16} /> Previous</a> : <span class="button secondary" aria-disabled="true"><Icon name="arrow-left" size={16} /> Previous</span>}
+            {hasNext ? <a class="button secondary" href={pageHref(page + 1)} rel="next">Next <Icon name="arrow-right" size={16} /></a> : <span class="button secondary" aria-disabled="true">Next <Icon name="arrow-right" size={16} /></span>}
+          </div>
+        </nav>
+      </>
+    )}
+  </div>
+</Layout>

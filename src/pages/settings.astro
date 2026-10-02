@@ -1,0 +1,117 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import { listProviders } from '../lib/ai';
+let providers: any[] = [], error = '';
+try { providers = await listProviders(); } catch (e) { error = e instanceof Error ? e.message : 'Database unavailable'; }
+const names: Record<string, string> = { openai: 'OpenAI', deepseek: 'DeepSeek', openrouter: 'OpenRouter', anthropic: 'Anthropic Claude' };
+---
+<Layout title="Provider settings">
+  <div class="page narrow">
+    <header class="page-head">
+      <div>
+        <p class="kicker">Configuration</p>
+        <h1>Provider settings</h1>
+        <p class="lede">Choose an AI provider for source-grounded summaries. Keys are encrypted on the server and never sent back to the browser.</p>
+      </div>
+    </header>
+
+    <section class="panel" aria-labelledby="h-saved">
+      <h2 id="h-saved">Saved providers</h2>
+      {error ? <p class="notice error" role="alert"><Icon name="error" /><span>{error}</span></p> : providers.length === 0 ? <p class="muted">No provider is configured yet. The case desk remains fully usable without AI.</p> : (
+        <ul class="provider-list">
+          {providers.map((provider) => (
+            <li class="provider-row">
+              <div class="provider-info">
+                <span class="provider-name">{names[provider.provider] ?? provider.provider}<span class:list={['badge', { success: provider.enabled }]}>{provider.enabled ? 'Enabled' : 'Disabled'}</span></span>
+                <span class="muted small">{provider.model ?? 'No model selected'} · {provider.hasKey ? 'Key stored (encrypted)' : 'No key stored'}</span>
+              </div>
+              <div class="provider-actions" data-provider={provider.provider} data-name={names[provider.provider] ?? provider.provider}>
+                <button class="button secondary" data-action="test" type="button">Test connection</button>
+                <button class="button secondary" data-action="toggle" data-enabled={String(provider.enabled)} type="button">{provider.enabled ? 'Disable' : 'Enable'}</button>
+                <button class="button danger" data-action="remove" type="button">Remove</button>
+              </div>
+              <span class="form-status provider-result" role="status"></span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+
+    <section class="panel" aria-labelledby="h-connect">
+      <h2 id="h-connect">Add or update a provider</h2>
+      <form id="provider-form">
+        <div class="form-grid">
+          <div class="field"><label for="p-provider">Provider</label><select id="p-provider" name="provider">{Object.entries(names).map(([value, label]) => <option value={value}>{label}</option>)}</select></div>
+          <div class="field"><label for="p-key">API key</label><input id="p-key" name="apiKey" type="password" autocomplete="new-password" aria-describedby="p-key-hint" /><span class="hint" id="p-key-hint">Leave blank to keep a key that is already saved.</span></div>
+          <div class="field"><label for="p-model">Model identifier</label><input id="p-model" name="model" list="model-catalog" autocomplete="off" spellcheck="false" aria-describedby="p-model-hint" /><datalist id="model-catalog"></datalist><span class="hint" id="p-model-hint">Type the identifier, or load the provider’s catalog to pick from it.</span></div>
+          <div class="field"><label for="p-url">API endpoint <span class="muted">(optional)</span></label><input id="p-url" name="baseUrl" type="url" placeholder="https://" aria-describedby="p-url-hint" /><span class="hint" id="p-url-hint">Official provider hosts only. Leave blank for the default.</span></div>
+        </div>
+        <div class="form-actions">
+          <button class="button" type="submit">Save provider</button>
+          <button class="button secondary" id="load-models" type="button">Load model catalog</button>
+          <span id="form-status" class="form-status" role="status"></span>
+        </div>
+      </form>
+    </section>
+  </div>
+</Layout>
+<script>
+  const setStatus = (el: Element | null, state: string, text: string) => { if (el instanceof HTMLElement) { el.dataset.state = state; el.textContent = text; } };
+  const post = (url: string, body?: unknown) => fetch(url, { method: 'POST', headers: body ? { 'content-type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });
+  const errorOf = async (response: Response) => String((await response.json().catch(() => ({}))).error ?? 'unknown error').slice(0, 200);
+
+  const form = document.querySelector<HTMLFormElement>('#provider-form');
+  const formStatus = document.querySelector('#form-status');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const button = form.querySelector<HTMLButtonElement>('button[type=submit]')!;
+    button.disabled = true; setStatus(formStatus, '', 'Saving…');
+    try {
+      const response = await post('/api/providers', { ...Object.fromEntries(new FormData(form)), enabled: true });
+      if (response.ok) { location.reload(); return; }
+      setStatus(formStatus, 'error', `Not saved: ${await errorOf(response)}`);
+    } catch { setStatus(formStatus, 'error', 'Network error. The provider was not saved.'); }
+    button.disabled = false;
+  });
+
+  document.querySelector<HTMLButtonElement>('#load-models')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget as HTMLButtonElement;
+    const provider = form!.querySelector<HTMLSelectElement>('[name=provider]')!.value;
+    button.disabled = true; setStatus(formStatus, '', 'Loading model catalog…');
+    try {
+      const response = await fetch(`/api/providers/${provider}/models`);
+      if (response.ok) {
+        const { models } = await response.json();
+        const catalog = document.querySelector('#model-catalog')!;
+        catalog.replaceChildren(...models.map((model: string) => Object.assign(document.createElement('option'), { value: model })));
+        setStatus(formStatus, models.length ? 'ok' : '', models.length ? `${models.length} models loaded. Start typing in “Model identifier” to pick one.` : 'The provider returned no models.');
+      } else setStatus(formStatus, 'error', `Catalog unavailable: ${await errorOf(response)}`);
+    } catch { setStatus(formStatus, 'error', 'Network error while loading models.'); }
+    button.disabled = false;
+  });
+
+  document.querySelectorAll<HTMLElement>('.provider-actions').forEach((group) => {
+    const { provider, name } = group.dataset;
+    const result = group.parentElement!.querySelector('.provider-result');
+    group.addEventListener('click', async (event) => {
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-action]');
+      if (!button) return;
+      const action = button.dataset.action;
+      if (action === 'remove' && !confirm(`Remove ${name} and its encrypted key? This cannot be undone.`)) return;
+      button.disabled = true;
+      try {
+        if (action === 'test') {
+          setStatus(result, '', 'Testing connection…');
+          const response = await post(`/api/providers/${provider}/test`);
+          setStatus(result, response.ok ? 'ok' : 'error', response.ok ? 'Connection OK.' : `Test failed: ${await errorOf(response)}`);
+        } else {
+          const response = action === 'remove' ? await fetch(`/api/providers/${provider}`, { method: 'DELETE' }) : await post('/api/providers', { provider, enabled: button.dataset.enabled !== 'true' });
+          if (response.ok) { location.reload(); return; }
+          setStatus(result, 'error', `Failed: ${await errorOf(response)}`);
+        }
+      } catch { setStatus(result, 'error', 'Network error. Nothing was changed.'); }
+      button.disabled = false;
+    });
+  });
+</script>

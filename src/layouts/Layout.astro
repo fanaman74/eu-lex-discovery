@@ -1,0 +1,40 @@
+---
+import '../styles/global.css';
+import Icon from '../components/Icon.astro';
+const { title = 'EU Lex Discovery' } = Astro.props;
+const path = Astro.url.pathname;
+const links = [
+  { href: '/', label: 'Case desk', icon: 'scale', active: path === '/' || path.startsWith('/cases') },
+  { href: '/monitoring', label: 'Monitoring', icon: 'activity', active: path.startsWith('/monitoring') },
+  { href: '/settings', label: 'Provider settings', icon: 'sliders', active: path.startsWith('/settings') }
+];
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="description" content="Source-grounded monitoring for European employment and workplace law." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@500;600&family=Lato:wght@400;700&display=swap" />
+    <title>{title} · EU Lex Discovery</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+    <div class="shell">
+      <header class="sidebar">
+        <a class="brand" href="/" aria-label="EU Lex Discovery, case desk"><span class="brand-mark" aria-hidden="true">EU</span><span class="brand-name">EU Lex <span>Discovery</span></span></a>
+        <nav aria-label="Primary">
+          {links.map((link) => <a href={link.href} aria-current={link.active ? 'page' : undefined}><Icon name={link.icon} />{link.label}</a>)}
+        </nav>
+        <div class="sidebar-foot">
+          <p class="source-note"><Icon name="shield" size={16} /><span><strong>Official source</strong>EUR-Lex / Cellar</span></p>
+          <p class="legal-note">Research support only. Always verify against the official judgment.</p>
+        </div>
+      </header>
+      <main class="main" id="main" tabindex="-1"><slot /><p class="page-foot">Research support only. Always verify against the official judgment on EUR-Lex.</p></main>
+    </div>
+  </body>
+</html>
