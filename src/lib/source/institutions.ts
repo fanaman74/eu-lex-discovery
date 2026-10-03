@@ -15,6 +15,9 @@ export const updateTerms = ['harassment', 'bullying', 'dignity at work', 'psycho
 /** The Commission publishes far more on these words in general policy (cyberbullying, health statistics), so its list is narrower. */
 export const commissionTerms = ['harassment', 'psychosocial', 'dignity at work', 'mental health at work', 'whistleblow', 'administrative inquir', 'disciplinary proceeding'];
 
+/** Known oversight reports whose titles do not carry the ordinary staff-well-being keywords. */
+export const commissionSpecialCelexes = ['52026DC0493'] as const;
+
 export function matchTerms(title: string, terms = updateTerms) {
   const lower = title.toLocaleLowerCase('en');
   return terms.filter((term) => lower.includes(term));
@@ -40,7 +43,13 @@ const ombudsmanKinds: Record<string, { label: string; path: string }> = {
   NEWSDOCUMENT: { label: 'News', path: 'news-document' },
   SPEECH: { label: 'Speech', path: 'speech' }
 };
-const ombudsmanSearches = ['harassment', 'dignity at work', 'psychosocial', 'whistleblower'];
+const ombudsmanSearches = ['harassment', 'dignity at work', 'psychosocial', 'whistleblower', 'OLAF investigation'];
+const ombudsmanOlafContextTerms = ['staff', 'disciplin', 'employee', 'official', 'personnel', 'employment'];
+
+function ombudsmanOfficialUrl(key: string, kind: { path: string }) {
+  // Keep the stable short URL for the known OLAF follow-up decision.
+  return key === '223656' ? 'https://www.ombudsman.europa.eu/decision/223656' : `https://www.ombudsman.europa.eu/en/${kind.path}/en/${key}`;
+}
 
 export async function fetchOmbudsmanUpdates(fetchImpl: typeof fetch = fetch, now = new Date()): Promise<InstitutionUpdate[]> {
   const years = [now.getUTCFullYear(), now.getUTCFullYear() - 1];
@@ -54,9 +63,13 @@ export async function fetchOmbudsmanUpdates(fetchImpl: typeof fetch = fetch, now
       const title = typeof doc?.docVersionContent?.title === 'string' ? clean(doc.docVersionContent.title) : '';
       if (!Number.isSafeInteger(key) || !title) continue;
       const matchedTerms = matchTerms(title);
-      if (matchedTerms.length === 0) continue;
+      const lowerTitle = title.toLocaleLowerCase('en');
+      const caseRef = typeof doc.caseRef === 'string' ? doc.caseRef.trim().toLocaleUpperCase('en') : '';
+      const knownOlafCase = String(key) === '223656' || caseRef === '132/2025/ACB';
+      const contextualOlafTitle = lowerTitle.includes('olaf') && ombudsmanOlafContextTerms.some((term) => lowerTitle.includes(term));
+      if (matchedTerms.length === 0 && !knownOlafCase && !contextualOlafTitle) continue;
       const kind = ombudsmanKinds[String(doc.documentClass)] ?? { label: 'Document', path: 'document' };
-      found.set(String(key), { institution: 'ombudsman', externalId: String(key), title, kind: kind.label, reference: typeof doc.caseRef === 'string' ? `Case ${doc.caseRef}` : null, documentDate: isoDay(doc.documentDate), officialUrl: `https://www.ombudsman.europa.eu/en/${kind.path}/en/${key}`, matchedTerms });
+      found.set(String(key), { institution: 'ombudsman', externalId: String(key), title, kind: kind.label, reference: typeof doc.caseRef === 'string' ? `Case ${doc.caseRef}` : null, documentDate: isoDay(doc.documentDate), officialUrl: ombudsmanOfficialUrl(String(key), kind), matchedTerms: matchedTerms.length ? matchedTerms : ['OLAF oversight'] });
     }
   }
   return [...found.values()];
@@ -65,6 +78,7 @@ export async function fetchOmbudsmanUpdates(fetchImpl: typeof fetch = fetch, now
 // ---------- European Commission: documents published in EUR-Lex ----------
 
 export const commissionCellarQuery = (since: string) => `PREFIX cdm: <http://publications.europa.eu/ontology/cdm#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 SELECT DISTINCT ?celex ?date ?title WHERE {
   ?work cdm:work_created_by_agent <http://publications.europa.eu/resource/authority/corporate-body/COM> ;
     cdm:work_date_document ?date ;
@@ -73,7 +87,7 @@ SELECT DISTINCT ?celex ?date ?title WHERE {
   ?expression cdm:expression_belongs_to_work ?work ;
     cdm:expression_uses_language <http://publications.europa.eu/resource/authority/language/ENG> ;
     cdm:expression_title ?title .
-  FILTER(REGEX(STR(?title), "${[...commissionTerms, 'give effect to the Staff Regulations'].join('|')}", "i"))
+  FILTER(REGEX(STR(?title), "${[...commissionTerms, 'give effect to the Staff Regulations'].join('|')}", "i") || STR(?celex) IN (${commissionSpecialCelexes.map((celex) => `"${celex}"`).join(', ')}))
 } ORDER BY DESC(?date) LIMIT 100`;
 
 const celexKinds: [RegExp, string][] = [[/^5\d{4}DC/, 'Communication or report'], [/^5\d{4}PC/, 'Legislative proposal'], [/^5\d{4}SC/, 'Staff working document'], [/^3\d{4}D/, 'Decision'], [/^3\d{4}R/, 'Regulation'], [/^3\d{4}H/, 'Recommendation']];
@@ -89,7 +103,9 @@ export async function fetchCommissionDocuments(fetchImpl: typeof fetch = fetch, 
     // Only real CELEX numbers get a stable EUR-Lex address; drafts and Official Journal notice ids are skipped.
     if (typeof celex !== 'string' || !/^[1-9]\d{4}[A-Z]{1,2}\d{4}$/.test(celex) || !title) continue;
     const matchedTerms = matchTerms(title, commissionTerms);
-    found.set(celex, { institution: 'commission', externalId: celex, title, kind: celexKinds.find(([pattern]) => pattern.test(celex))?.[1] ?? 'Document', reference: `CELEX ${celex}`, documentDate: isoDay(row?.date?.value), officialUrl: `https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:${celex}`, matchedTerms: matchedTerms.length ? matchedTerms : ['staff regulations'] });
+    const specialCase = commissionSpecialCelexes.includes(celex as (typeof commissionSpecialCelexes)[number]);
+    if (matchedTerms.length === 0 && !specialCase) continue;
+    found.set(celex, { institution: 'commission', externalId: celex, title, kind: celexKinds.find(([pattern]) => pattern.test(celex))?.[1] ?? 'Document', reference: `CELEX ${celex}`, documentDate: isoDay(row?.date?.value), officialUrl: `https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:${celex}`, matchedTerms: matchedTerms.length ? matchedTerms : ['OLAF oversight'] });
   }
   return [...found.values()];
 }

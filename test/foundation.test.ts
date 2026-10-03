@@ -4,6 +4,8 @@ import { encryptSecret, decryptSecret, redactError } from '../src/lib/security.t
 import { fetchEurLexCases, fetchEurLexDocument } from '../src/lib/source/eurlex.ts';
 import { shouldRunSchedule } from '../src/lib/schedule.ts';
 import { parseReport, buildChatRequest } from '../src/lib/ai.ts';
+import { commissionCellarQuery, fetchCommissionDocuments, fetchOmbudsmanUpdates } from '../src/lib/source/institutions.ts';
+import { selectedDecisions } from '../src/data/rules.ts';
 
 test('encrypted credentials round-trip and errors redact full secrets', () => {
   process.env.CREDENTIAL_ENCRYPTION_KEY = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
@@ -29,6 +31,38 @@ test('official Cellar redirects are upgraded to HTTPS and bounded', async () => 
   const result = await fetchEurLexDocument({ celex: '62023CJ0343' }, redirectFetch as typeof fetch);
   assert.match(requested[1], /^https:\/\/publications\.europa\.eu/);
   assert.match(result.text, /\[paragraph 1\]/);
+});
+
+test('OLAF oversight records are included narrowly and unrelated titles stay out', async () => {
+  assert.match(commissionCellarQuery('2026-01-01'), /52026DC0493/);
+  const commissionFetch = async () => new Response(JSON.stringify({ results: { bindings: [
+    { celex: { value: '52026DC0493' }, title: { value: 'Report from the Commission on the evaluation of Regulation 883/2013 concerning investigations conducted by OLAF' }, date: { value: '2026-09-18' } },
+    { celex: { value: '52026DC0999' }, title: { value: 'OLAF annual report on procurement statistics' }, date: { value: '2026-09-17' } }
+  ] } }), { status: 200 });
+  const [commissionRecord] = await fetchCommissionDocuments(commissionFetch as typeof fetch, new Date('2026-10-03T00:00:00Z'));
+  assert.equal(commissionRecord.externalId, '52026DC0493');
+  assert.deepEqual(commissionRecord.matchedTerms, ['OLAF oversight']);
+  assert.match(commissionRecord.officialUrl, /CELEX:52026DC0493$/);
+
+  const ombudsmanFetch = async () => new Response(JSON.stringify({ documents: [
+    { techKey: 223656, documentClass: 'EODECISION', caseRef: '132/2025/ACB', documentDate: '2026-09-18', docVersionContent: { title: 'Decision on the European Commission’s refusal to give public access to documents concerning the follow-up to an OLAF investigation (case 132/2025/ACB)' } },
+    { techKey: 223658, documentClass: 'EODECISION', caseRef: '134/2025/ACB', documentDate: '2026-09-18', docVersionContent: { title: 'Decision on disciplinary follow-up to an OLAF investigation concerning a Commission staff member' } },
+    { techKey: 223657, documentClass: 'EODECISION', caseRef: '133/2025/ACB', documentDate: '2026-09-18', docVersionContent: { title: 'Decision on an OLAF investigation into procurement fraud' } }
+  ] }), { status: 200 });
+  const ombudsmanRecords = await fetchOmbudsmanUpdates(ombudsmanFetch as typeof fetch, new Date('2026-10-03T00:00:00Z'));
+  assert.deepEqual(ombudsmanRecords.map((record) => record.externalId), ['223656', '223658']);
+  assert.equal(ombudsmanRecords[0].officialUrl, 'https://www.ombudsman.europa.eu/decision/223656');
+  assert.deepEqual(ombudsmanRecords[0].matchedTerms, ['OLAF oversight']);
+  assert.deepEqual(ombudsmanRecords[1].matchedTerms, ['OLAF oversight']);
+
+  assert.equal(selectedDecisions.length, 4);
+  assert.deepEqual(selectedDecisions.map((item) => item.reference), ['CELEX 62024CJ0075', 'CELEX 62025TJ0006', 'Case 132/2025/ACB', 'CELEX 52026DC0493']);
+  assert.deepEqual(selectedDecisions.map((item) => item.url), [
+    'https://eur-lex.europa.eu/legal-content/EN/CASE/?uri=CELEX%3A62024CJ0075',
+    'https://eur-lex.europa.eu/legal-content/EN/CASE/?uri=CELEX%3A62025TJ0006',
+    'https://www.ombudsman.europa.eu/decision/223656',
+    'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A52026DC0493'
+  ]);
 });
 
 test('schedule catches up once per local day after configured time', () => {

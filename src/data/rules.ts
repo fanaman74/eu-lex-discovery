@@ -14,6 +14,51 @@ export interface RuleGroup { id: string; body: string; role: string; rules: Rule
 /** Hand-curated list, not fed by the monitor. Every entry was checked against its official source on the date below. */
 export const rulesCheckedOn = '2026-10-02';
 
+/** A small editorial selection shown immediately, separately from the daily source feeds. */
+export const selectedDecisionsCheckedOn = '2026-10-03';
+export const selectedDecisions: Rule[] = [
+  {
+    title: 'Judgment of the Court (Fifth Chamber) of 15 January 2026. XH v European Commission. Case C-75/24 P.',
+    reference: 'CELEX 62024CJ0075',
+    date: '2026-01-15',
+    kind: 'Court of Justice judgment',
+    summary: 'An appeal in a civil-service case involving allegations of psychological harassment during sick leave, a rejected request for assistance and compensation, and an invalidity procedure. The judgment addresses admissibility and the General Court’s reasoning; it is a ruling on this case, not a general Commission policy.',
+    topics: ['Psychological harassment', 'Commission staff', 'Court judgment'],
+    url: 'https://eur-lex.europa.eu/legal-content/EN/CASE/?uri=CELEX%3A62024CJ0075',
+    host: 'EUR-Lex'
+  },
+  {
+    title: 'Judgment of the General Court (Tenth Chamber) of 11 March 2026. QI v European Commission. Case T-6/25.',
+    reference: 'CELEX 62025TJ0006',
+    date: '2026-03-11',
+    kind: 'General Court judgment',
+    summary: 'A General Court staff case about alleged psychological harassment, a request for assistance under Articles 12a and 24 of the Staff Regulations, and liability. The action was dismissed; the judgment is the authority for the court’s reasons and outcome.',
+    topics: ['Psychological harassment', 'Duty of assistance', 'Court judgment'],
+    url: 'https://eur-lex.europa.eu/legal-content/EN/CASE/?uri=CELEX%3A62025TJ0006',
+    host: 'EUR-Lex'
+  },
+  {
+    title: 'Decision on the European Commission’s refusal to give public access to documents concerning the follow-up to an OLAF investigation (case 132/2025/ACB)',
+    reference: 'Case 132/2025/ACB',
+    date: '2026-09-18',
+    kind: 'European Ombudsman decision',
+    summary: 'This decision concerns transparency and document access after an OLAF investigation, including how follow-up can be scrutinised. It is contextual to disciplinary transparency and staff safeguards, not a finding of harassment.',
+    topics: ['OLAF oversight', 'Document access', 'Staff safeguards'],
+    url: 'https://www.ombudsman.europa.eu/decision/223656',
+    host: 'European Ombudsman'
+  },
+  {
+    title: 'Report from the Commission to the European Parliament and the Council on the evaluation of Regulation (EU, Euratom) No 883/2013 concerning investigations conducted by the European Anti-Fraud Office (OLAF)',
+    reference: 'CELEX 52026DC0493',
+    date: '2026-09-18',
+    kind: 'Commission report',
+    summary: 'The OLAF evaluation discusses inconsistent interpretations of OLAF powers in matters involving EU staff, including harassment, and identifies questions around whistleblower and informant safeguards. It is an oversight report, not a determination of an individual harassment complaint.',
+    topics: ['OLAF oversight', 'Harassment safeguards', 'Whistleblowing'],
+    url: 'https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A52026DC0493',
+    host: 'EUR-Lex'
+  }
+];
+
 export const ruleGroups: RuleGroup[] = [
   {
     id: 'all-staff',

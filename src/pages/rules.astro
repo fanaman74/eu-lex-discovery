@@ -2,7 +2,7 @@
 import Layout from '../layouts/Layout.astro';
 import Icon from '../components/Icon.astro';
 import { query } from '../lib/db';
-import { ruleGroups, rulesCheckedOn } from '../data/rules';
+import { ruleGroups, rulesCheckedOn, selectedDecisions, selectedDecisionsCheckedOn } from '../data/rules';
 const format = (iso: string, options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('en-GB', { ...options, timeZone: 'UTC' }).format(new Date(iso));
 type Update = { title: string; kind: string; reference: string | null; day: string | null; official_url: string; matched_terms: string[]; source: string };
 const feeds = [
@@ -28,11 +28,34 @@ const standing = ruleGroups.reduce((sum, group) => sum + group.rules.length, 0);
     </header>
 
     <nav class="jump" aria-label="On this page">
+      <a href="#selected-decisions">Selected decisions and reports</a>
       {feeds.map((feed) => <a href={`#${feed.id}`}>{feed.heading}</a>)}
       <a href="#standing">Standing rules</a>
     </nav>
 
     {error && <p class="notice error" role="alert"><Icon name="error" /><span>The latest documents cannot be loaded right now: {error}</span></p>}
+
+    <section class="rule-group" id="selected-decisions" aria-labelledby="h-selected-decisions">
+      <header class="rule-group-head">
+        <h2 id="h-selected-decisions">Selected decisions and reports</h2>
+        <p>A small hand-curated selection of recent official records relevant to staff safeguards and oversight, checked on <time datetime={selectedDecisionsCheckedOn}>{format(selectedDecisionsCheckedOn, { day: 'numeric', month: 'long', year: 'numeric' })}</time>. These entries are separate from the daily feeds and are not presented as automatic search results.</p>
+      </header>
+      <ul class="dispatches">
+        {selectedDecisions.map((item) => (
+          <li class="dispatch">
+            <p class="dispatch-date">
+              {item.date ? <time datetime={item.date}><span>{format(item.date, { day: 'numeric' })}</span> {format(item.date, { month: 'short', year: 'numeric' })}</time> : <span class="undated">Undated</span>}
+            </p>
+            <div class="dispatch-body">
+              <h3><a href={item.url} target="_blank" rel="noreferrer">{item.title}<span class="sr-only"> (opens the official source in a new tab)</span></a></h3>
+              <p class="rule-summary">{item.summary}</p>
+              <ul class="tags" aria-label="Topics">{item.topics.map((topic) => <li class="tag">{topic}</li>)}</ul>
+            </div>
+            <p class="dispatch-ref"><strong>{item.reference}</strong>{item.host}<span>{item.kind}</span><Icon name="external" size={22} /></p>
+          </li>
+        ))}
+      </ul>
+    </section>
 
     {feeds.map((feed) => (
       <section class="rule-group" id={feed.id} aria-labelledby={`h-${feed.id}`}>
