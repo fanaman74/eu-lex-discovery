@@ -6,6 +6,7 @@ const path = Astro.url.pathname;
 const links = [
   { href: '/cases', label: 'Rulings', active: path.startsWith('/cases') },
   { href: '/rules', label: 'Rules', active: path.startsWith('/rules') },
+  { href: '/decisions', label: 'Decisions', active: path.startsWith('/decisions') },
   { href: '/discharge', label: 'Discharge', active: path.startsWith('/discharge') },
   { href: '/monitoring', label: 'Monitoring', active: path.startsWith('/monitoring') },
   { href: '/settings', label: 'Settings', active: path.startsWith('/settings') }
