@@ -3,26 +3,32 @@ import Layout from '../layouts/Layout.astro';
 import Icon from '../components/Icon.astro';
 import { selectedDecisions, selectedDecisionsCheckedOn } from '../data/rules';
 const format = (iso: string, options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('en-GB', { ...options, timeZone: 'UTC' }).format(new Date(iso));
+const orderedSelectedDecisions = selectedDecisions
+  .map((item, index) => ({ item, index }))
+  .sort((a, b) => {
+    if (a.item.date === b.item.date) return a.index - b.index;
+    if (!a.item.date) return 1;
+    if (!b.item.date) return -1;
+    return b.item.date.localeCompare(a.item.date);
+  })
+  .map(({ item }) => item);
 ---
 <Layout title="Selected decisions and reports" description="A hand-curated selection of official EU decisions and reports relevant to staff safeguards and oversight, linked to their original sources.">
-  <section class="hero decisions-hero">
-    <picture>
-      <img src="/images/decisions-hero.png" alt="European Union flag hanging inside a glass and steel atrium." width="1011" height="673" fetchpriority="high" />
-    </picture>
-    <div class="hero-block">
-      <h1>Selected decisions and reports</h1>
-      <p>A hand-curated selection of recent official records relevant to staff safeguards and oversight. Each entry links to the authority that published it.</p>
-    </div>
-  </section>
-
   <div class="page">
+    <header class="page-head decisions-head">
+      <div>
+        <h1>Selected decisions and reports</h1>
+        <p class="lede">A hand-curated selection of recent official records relevant to staff safeguards and oversight. Each entry links to the authority that published it.</p>
+      </div>
+    </header>
+
     <section class="rule-group" aria-labelledby="h-selected-decisions">
       <header class="rule-group-head">
         <h2 id="h-selected-decisions">Official records</h2>
         <p>Checked on <time datetime={selectedDecisionsCheckedOn}>{format(selectedDecisionsCheckedOn, { day: 'numeric', month: 'long', year: 'numeric' })}</time>. These entries are separate from the daily feeds and are not presented as automatic search results.</p>
       </header>
       <ul class="dispatches">
-        {selectedDecisions.map((item) => (
+        {orderedSelectedDecisions.map((item) => (
           <li class="dispatch">
             <p class="dispatch-date">
               {item.date ? <time datetime={item.date}><span>{format(item.date, { day: 'numeric' })}</span> {format(item.date, { month: 'short', year: 'numeric' })}</time> : <span class="undated">Undated</span>}

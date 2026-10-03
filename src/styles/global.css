@@ -95,10 +95,9 @@ main:focus { outline: none; }
 
 .hero { position: relative; display: grid; align-items: end; min-height: min(calc(100svh - 64px), 940px); background: var(--ink); overflow: hidden; }
 .hero picture { position: absolute; inset: 0; }
-/* Oversized and anchored bottom-left so the canopy clears the headline block and the crossing runs out beside it. */
+/* Keep the shared hero frame flexible; the home image gets its own crop below. */
 .hero img { position: absolute; left: 0; bottom: 0; width: max(130%, 1700px); height: auto; min-height: 100%; display: block; object-fit: cover; }
-.decisions-hero { min-height: min(72svh, 760px); }
-.decisions-hero img { width: 100%; height: 100%; min-height: 100%; object-position: center; }
+.home-hero img { width: 100%; height: 100%; min-height: 0; object-fit: cover; object-position: center 38%; }
 .hero-block {
   position: relative; width: min(58%, 900px); min-width: 640px;
   padding: var(--space-6) var(--space-6) var(--space-6) var(--gutter); background: var(--ink); color: #fff; border-top: 8px solid var(--wire);
@@ -295,6 +294,14 @@ td.nowrap { white-space: nowrap; }
 .rule-group + .rule-group { margin-top: var(--space-8); }
 .rule-group-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-4) var(--space-6); align-items: end; margin-bottom: var(--space-5); }
 .rule-group-head p { color: var(--grey); max-width: 56ch; }
+.rule-group-details { margin: 0; }
+.rule-group-summary { grid-template-columns: minmax(0, 1fr) auto; cursor: pointer; list-style: none; }
+.rule-group-summary::-webkit-details-marker { display: none; }
+.rule-group-summary:focus-visible { outline-offset: 4px; }
+.rule-group-toggle { min-width: 86px; color: var(--grey); font-size: 0.875rem; font-weight: 700; text-align: right; }
+.rule-group-toggle::before { content: 'Collapse'; }
+.rule-group-details:not([open]) .rule-group-toggle::before { content: 'Expand'; }
+.rule-group-intro { margin: 0 0 var(--space-5); color: var(--grey); max-width: 70ch; }
 .rule-group .dispatch { grid-template-columns: 130px minmax(0, 1fr) 260px; }
 .rule-group .dispatch-ref { white-space: normal; }
 .rule-group .dispatch-ref span { font-size: 0.875rem; }

@@ -17,6 +17,15 @@ try {
   }
 } catch (e) { error = e instanceof Error ? e.message : 'Database unavailable'; }
 const standing = ruleGroups.reduce((sum, group) => sum + group.rules.length, 0);
+const orderedStandingRules = ruleGroups
+  .flatMap((group) => group.rules.map((rule) => ({ group, rule })))
+  .map((entry, index) => ({ ...entry, index }))
+  .sort((a, b) => {
+    if (a.rule.date === b.rule.date) return a.index - b.index;
+    if (!a.rule.date) return 1;
+    if (!b.rule.date) return -1;
+    return b.rule.date.localeCompare(a.rule.date);
+  });
 ---
 <Layout title="Rules on harassment and staff well-being" description="New decisions and rules on harassment, dignity and well-being at work from the European Ombudsman and the European Commission, each linked to its official source.">
   <div class="page">
@@ -36,53 +45,81 @@ const standing = ruleGroups.reduce((sum, group) => sum + group.rules.length, 0);
 
     {feeds.map((feed) => (
       <section class="rule-group" id={feed.id} aria-labelledby={`h-${feed.id}`}>
-        <header class="rule-group-head">
-          <h2 id={`h-${feed.id}`}>{feed.heading}</h2>
-          <p>{feed.intro}{feed.checked && <> Last checked <time datetime={feed.checked}>{format(feed.checked, { day: 'numeric', month: 'long', year: 'numeric' })}</time>.</>}</p>
-        </header>
-        {feed.items.length === 0 ? (
-          <div class="empty"><h3>Nothing collected yet</h3><p>Documents appear here after the next check of the official source.</p></div>
-        ) : (
-          <ul class="dispatches">
-            {feed.items.map((item) => (
-              <li class="dispatch">
-                <p class="dispatch-date">
-                  {item.day ? <time datetime={item.day}><span>{format(item.day, { day: 'numeric' })}</span> {format(item.day, { month: 'short', year: 'numeric' })}</time> : <span class="undated">Undated</span>}
-                </p>
-                <div class="dispatch-body">
-                  <h3><a href={item.official_url} target="_blank" rel="noreferrer">{item.title}<span class="sr-only"> (opens the official source in a new tab)</span></a></h3>
-                  <ul class="tags" aria-label="Matched words">{item.matched_terms.map((term) => <li class="tag">{term}</li>)}</ul>
-                </div>
-                <p class="dispatch-ref"><strong>{item.kind}</strong>{item.reference ?? ''}<span>{item.source}</span><Icon name="external" size={22} /></p>
-              </li>
-            ))}
-          </ul>
-        )}
+        <details open class="rule-group-details">
+          <summary class="rule-group-head rule-group-summary">
+            <h2 id={`h-${feed.id}`}>{feed.heading}</h2>
+            <span class="rule-group-toggle" aria-hidden="true"></span>
+          </summary>
+          <div class="rule-group-content">
+            <p class="rule-group-intro">{feed.intro}{feed.checked && <> Last checked <time datetime={feed.checked}>{format(feed.checked, { day: 'numeric', month: 'long', year: 'numeric' })}</time>.</>}</p>
+            {feed.items.length === 0 ? (
+              <div class="empty"><h3>Nothing collected yet</h3><p>Documents appear here after the next check of the official source.</p></div>
+            ) : (
+              <ul class="dispatches">
+                {feed.items.map((item) => (
+                  <li class="dispatch">
+                    <p class="dispatch-date">
+                      {item.day ? <time datetime={item.day}><span>{format(item.day, { day: 'numeric' })}</span> {format(item.day, { month: 'short', year: 'numeric' })}</time> : <span class="undated">Undated</span>}
+                    </p>
+                    <div class="dispatch-body">
+                      <h3><a href={item.official_url} target="_blank" rel="noreferrer">{item.title}<span class="sr-only"> (opens the official source in a new tab)</span></a></h3>
+                      <ul class="tags" aria-label="Matched words">{item.matched_terms.map((term) => <li class="tag">{term}</li>)}</ul>
+                    </div>
+                    <p class="dispatch-ref"><strong>{item.kind}</strong>{item.reference ?? ''}<span>{item.source}</span><Icon name="external" size={22} /></p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </details>
       </section>
     ))}
 
     <section class="rule-group" id="standing" aria-labelledby="h-standing">
-      <header class="rule-group-head">
-        <h2 id="h-standing">Standing rules</h2>
-        <p>{standing} reference documents, compiled by hand and last checked on <time datetime={rulesCheckedOn}>{format(rulesCheckedOn, { day: 'numeric', month: 'long', year: 'numeric' })}</time>. This part is not updated by the daily check.</p>
-      </header>
-      <ul class="dispatches">
-        {ruleGroups.flatMap((group) => group.rules.map((rule) => (
-          <li class="dispatch">
-            <p class="dispatch-date">
-              {rule.date ? <time datetime={rule.date}><span>{format(rule.date, { year: 'numeric' })}</span> {format(rule.date, { day: 'numeric', month: 'short' })}</time> : <span class="undated">Undated</span>}
-            </p>
-            <div class="dispatch-body">
-              <h3><a href={rule.url} target="_blank" rel="noreferrer">{rule.title}<span class="sr-only"> (opens the official source in a new tab)</span></a></h3>
-              <p class="rule-summary">{rule.summary}</p>
-              <ul class="tags" aria-label="Topics">{rule.topics.map((topic) => <li class="tag">{topic}</li>)}</ul>
-            </div>
-            <p class="dispatch-ref"><strong>{rule.reference}</strong>{group.body}<span>{rule.kind}</span><Icon name="external" size={22} /></p>
-          </li>
-        )))}
-      </ul>
+      <details open class="rule-group-details">
+        <summary class="rule-group-head rule-group-summary">
+          <h2 id="h-standing">Standing rules</h2>
+          <span class="rule-group-toggle" aria-hidden="true"></span>
+        </summary>
+        <div class="rule-group-content">
+          <p class="rule-group-intro">{standing} reference documents, compiled by hand and last checked on <time datetime={rulesCheckedOn}>{format(rulesCheckedOn, { day: 'numeric', month: 'long', year: 'numeric' })}</time>. This part is not updated by the daily check.</p>
+          <ul class="dispatches">
+            {orderedStandingRules.map(({ group, rule }) => (
+              <li class="dispatch">
+                <p class="dispatch-date">
+                  {rule.date ? <time datetime={rule.date}><span>{format(rule.date, { year: 'numeric' })}</span> {format(rule.date, { day: 'numeric', month: 'short' })}</time> : <span class="undated">Undated</span>}
+                </p>
+                <div class="dispatch-body">
+                  <h3><a href={rule.url} target="_blank" rel="noreferrer">{rule.title}<span class="sr-only"> (opens the official source in a new tab)</span></a></h3>
+                  <p class="rule-summary">{rule.summary}</p>
+                  <ul class="tags" aria-label="Topics">{rule.topics.map((topic) => <li class="tag">{topic}</li>)}</ul>
+                </div>
+                <p class="dispatch-ref"><strong>{rule.reference}</strong>{group.body}<span>{rule.kind}</span><Icon name="external" size={22} /></p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </details>
     </section>
 
     <p class="rule-note">The latest documents are found by searching each institution’s official site for a fixed list of words and keeping those whose title contains one. Internal decisions that an institution does not publish there will not appear, and a matching title does not guarantee the document is about staff. Titles are the institutions’ own; the summaries under “Standing rules” are this site’s plain-language descriptions. The linked document is always the authority.</p>
   </div>
 </Layout>
+
+<script>
+  const openRuleSection = () => {
+    const hash = window.location.hash;
+    if (!hash) return;
+    let id = '';
+    try {
+      id = decodeURIComponent(hash.slice(1));
+    } catch {
+      return;
+    }
+    const target = id ? document.getElementById(id) : null;
+    const details = target?.querySelector('details');
+    if (details instanceof HTMLDetailsElement) details.open = true;
+  };
+  openRuleSection();
+  window.addEventListener('hashchange', openRuleSection);
+</script>
