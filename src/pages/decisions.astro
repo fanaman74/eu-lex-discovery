@@ -27,21 +27,23 @@ const orderedSelectedDecisions = selectedDecisions
         <h2 id="h-selected-decisions">Official records</h2>
         <p>Checked on <time datetime={selectedDecisionsCheckedOn}>{format(selectedDecisionsCheckedOn, { day: 'numeric', month: 'long', year: 'numeric' })}</time>. These entries are separate from the daily feeds and are not presented as automatic search results.</p>
       </header>
-      <ul class="dispatches">
-        {orderedSelectedDecisions.map((item) => (
-          <li class="dispatch">
-            <p class="dispatch-date">
-              {item.date ? <time datetime={item.date}><span>{format(item.date, { day: 'numeric' })}</span> {format(item.date, { month: 'short', year: 'numeric' })}</time> : <span class="undated">Undated</span>}
-            </p>
-            <div class="dispatch-body">
-              <h3><a href={item.url} target="_blank" rel="noreferrer">{item.title}<span class="sr-only"> (opens the official source in a new tab)</span></a></h3>
-              <p class="rule-summary">{item.summary}</p>
-              <ul class="tags" aria-label="Topics">{item.topics.map((topic) => <li class="tag">{topic}</li>)}</ul>
-            </div>
-            <p class="dispatch-ref"><strong>{item.reference}</strong>{item.host}<span>{item.kind}</span><Icon name="external" size={22} /></p>
-          </li>
-        ))}
-      </ul>
+      <div class="rule-group-content">
+        <ul class="dispatches">
+          {orderedSelectedDecisions.map((item) => (
+            <li class="dispatch">
+              <p class="dispatch-date">
+                {item.date ? <time datetime={item.date}><span>{format(item.date, { day: 'numeric' })}</span> {format(item.date, { month: 'short', year: 'numeric' })}</time> : <span class="undated">Undated</span>}
+              </p>
+              <div class="dispatch-body">
+                <h3><a href={item.url} target="_blank" rel="noreferrer">{item.title}<span class="sr-only"> (opens the official source in a new tab)</span></a></h3>
+                <p class="rule-summary">{item.summary}</p>
+                <ul class="tags" aria-label="Topics">{item.topics.map((topic) => <li class="tag">{topic}</li>)}</ul>
+              </div>
+              <p class="dispatch-ref"><strong>{item.reference}</strong>{item.host}<span>{item.kind}</span><Icon name="external" size={22} /></p>
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
   </div>
 </Layout>

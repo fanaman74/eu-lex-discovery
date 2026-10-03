@@ -45,7 +45,7 @@ const orderedStandingRules = ruleGroups
 
     {feeds.map((feed) => (
       <section class="rule-group" id={feed.id} aria-labelledby={`h-${feed.id}`}>
-        <details open class="rule-group-details">
+        <details class="rule-group-details">
           <summary class="rule-group-head rule-group-summary">
             <h2 id={`h-${feed.id}`}>{feed.heading}</h2>
             <span class="rule-group-toggle" aria-hidden="true"></span>
@@ -76,7 +76,7 @@ const orderedStandingRules = ruleGroups
     ))}
 
     <section class="rule-group" id="standing" aria-labelledby="h-standing">
-      <details open class="rule-group-details">
+      <details class="rule-group-details">
         <summary class="rule-group-head rule-group-summary">
           <h2 id="h-standing">Standing rules</h2>
           <span class="rule-group-toggle" aria-hidden="true"></span>
