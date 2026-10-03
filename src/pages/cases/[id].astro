@@ -8,7 +8,11 @@ let item: any = null, error = '';
 try { const result = await query(`SELECT c.*,co.name court,co.jurisdiction, json_agg(DISTINCT jsonb_build_object('name',t.name_en,'matchType',ct.match_type)) FILTER (WHERE t.id IS NOT NULL) topics, json_agg(DISTINCT jsonb_build_object('url',d.official_url,'reference',d.source_reference,'retrievedAt',d.retrieved_at,'hasText',d.text_content IS NOT NULL)) docs, (SELECT report_json FROM reports r WHERE r.case_id=c.id AND r.status='complete' ORDER BY r.created_at DESC LIMIT 1) latest_report FROM cases c LEFT JOIN courts co ON co.id=c.court_id LEFT JOIN case_topics ct ON ct.case_id=c.id LEFT JOIN topics t ON t.id=ct.topic_id LEFT JOIN documents d ON d.case_id=c.id WHERE c.id=$1 GROUP BY c.id,co.name,co.jurisdiction`, [id]); item = result.rows[0]; } catch (e) { error = e instanceof Error ? e.message : 'Database unavailable'; }
 const date = (v: string | null) => v ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'long' }).format(new Date(v)) : 'Not recorded';
 const parsed = item ? parseTitle(item.title) : null;
-const docs: any[] = (item?.docs ?? []).filter((doc: any) => doc.url);
+const docs: any[] = (item?.docs ?? []).filter((doc: any) => doc.url).sort((a: any, b: any) => {
+  if (!a.retrievedAt) return b.retrievedAt ? 1 : 0;
+  if (!b.retrievedAt) return -1;
+  return new Date(b.retrievedAt).getTime() - new Date(a.retrievedAt).getTime();
+});
 const topics: any[] = (item?.topics ?? []).filter((t: any) => t.name);
 const report = item?.latest_report ?? null;
 const hasText = docs.some((doc) => doc.hasText);
